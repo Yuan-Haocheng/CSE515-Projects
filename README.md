@@ -1,2 +1,2 @@
-# CSE572-Projects
-Repository for projects of CSE572
+# CSE515-Projects
+Repository for projects of CSE515
