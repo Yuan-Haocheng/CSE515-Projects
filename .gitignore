@@ -1,0 +1,6 @@
+.vscode/
+testset
+testnpy/
+docus/
+*.pyc
+__pycache__/

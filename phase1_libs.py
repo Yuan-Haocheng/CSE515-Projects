@@ -9,7 +9,6 @@ from skimage.transform import resize
 from cv2 import xfeatures2d_SIFT
 import cv2
 
-
 #Function to load and read the images in the input path
 def load_imgs(PATH):
 
@@ -48,11 +47,11 @@ def LBP(colln_imgs):
         for h in range(0, img_h-win_h+1, win_h):
             for w in range(0, img_w-win_w+1, win_w):
                 win = img[h:h+win_h, w:w+win_w]
-                lbp.append(local_binary_pattern(win, 8, 1))
-                (hist, _) = np.histogram(lbp.ravel(), bins=np.arange(0, 8 + 3), range=(0, 8 + 2))
+                (hist, _) = np.histogram((local_binary_pattern(win, 24, 8)).ravel(), bins=np.arange(0, 24 + 3), range=(0, 24 + 2))
                 hist = hist.astype("float")
                 hist /= (hist.sum() + 1e-7)
-        colln_lbp.append(hist)
+                lbp.append(hist)
+        colln_lbp.append(lbp)
     return colln_lbp
 
 
@@ -121,7 +120,7 @@ def cosineSIFT(f1, f2):
 
 
 def main():
-
+    SIFT(None)
     print('Main Function')
 
 
