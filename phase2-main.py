@@ -48,10 +48,10 @@ def LBP(colln_imgs):
         for h in range(0, img_h-win_h+1, win_h):
             for w in range(0, img_w-win_w+1, win_w):
                 win = img[h:h+win_h, w:w+win_w]
-                lbp.append(local_binary_pattern(win, 8, 1))
-                (hist, _) = np.histogram(lbp.ravel(), bins=np.arange(0, 8 + 3), range=(0, 8 + 2))
+                (hist, _) = np.histogram((local_binary_pattern(win, 8, 1)).ravel(), bins=np.arange(0, 8 + 3), range=(0, 8 + 2))
                 hist = hist.astype("float")
                 hist /= (hist.sum() + 1e-7)
+                lbp.append(hist)
         colln_lbp.append(hist)
     return colln_lbp
 
