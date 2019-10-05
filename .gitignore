@@ -4,3 +4,4 @@ testnpy/
 docus/
 *.pyc
 __pycache__/
+metadata/

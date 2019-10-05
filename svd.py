@@ -6,7 +6,34 @@ from LSVisualizer import featureLSVisualize as fv
 import utilities as util
 
 def SVD(input_matrix, k=5):
+    r"""
+    
+    Perform Singualr Value Decomposition on given matrix, with a given k.
+    --------
+    Inputs:
+        
+        1. input_matrix: A numpy 2-d matrix with shape (n, m), n represents the number of images, 
+        and m represents the dimension of features. ( e.g. for color moments, 
+        the shape is (n, 1728) )
+
+        2. k: Integer value, given by user's input
+
+    Returns:
+
+        1. u: Data latent semantics, with shape (n, k)
+
+        2. s: Singular value list, with shape (k, )
+
+        3. vh: Transpose of v, with shape (k, m)
+
+    """
     u, s, vh = svds(A=input_matrix, k=k, which='LM')
+
+    # Ascending to desending
+    u = np.flip(u, axis=1) # (44, 5)
+    s = np.flip(s) # (5, )
+    vh = np.flip(vh, axis=0) # (5, 1728)
+
     return u, s, vh
 
 def dataPreprocess(raw_data): # (img_nums, i_th moment, position, YUV)
@@ -49,11 +76,6 @@ def main(debug_mode=False):
         img_dataset = dataPreprocess(imgs_moments) # (44, 1728)
         u, s, vh = SVD(input_matrix=img_dataset, k=k) # Ascending among the top K
 
-    # Ascending to desending
-    u = np.flip(u, axis=1) # (44, 5)
-    s = np.flip(s) # (5, )
-    vh = np.flip(vh, axis=0) # (5, 1728)
-
     # print(s) debug
     # test = (img_dataset.dot(img_dataset.T)).dot(u[:, 0])
     # print(test)
@@ -70,7 +92,6 @@ def main(debug_mode=False):
     if choice == 'Y' or choice == 'y':
         print("Visualization for feature latent semantics.")
         fv(vh, s, colln_imgs, img_dataset)
-
 
 if __name__ == "__main__":
     choice = input("Debug/Release? [D/R]\n")

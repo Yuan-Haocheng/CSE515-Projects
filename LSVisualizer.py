@@ -2,14 +2,14 @@ import numpy as np
 from skimage import io
 import matplotlib.pyplot as plt
 
-def dataLSVisualize(eigen_vectors, weights, colln_imgs): # like (5, 44)
+def dataLSVisualize(eigen_vectors, weights=None, colln_imgs): # like (5, 44)
     r"""
     Visualizer which shows a ranked list of image thumbnails along with their scores, for each latent semantics.
     --------
     Inputs:
         1. eigen_vectors: A numpy 2-d array of data latent semantics, in which rows = k, cols = number of images.
 
-        2. weights: A numpy 1-d array with length equals to rows of eigen_vectors.
+        2. weights: A numpy 1-d array with length equals to rows of eigen_vectors. Default by None.
 
         3. colln_imgs: Collection of images, with each image comprised of RGB arrays. len(colln_imgs)=img_num
     """
@@ -42,14 +42,14 @@ def dataLSVisualize(eigen_vectors, weights, colln_imgs): # like (5, 44)
         plt.show()
 
 
-def featureLSVisualize(eigen_vectors, weights, colln_imgs, img_dataset): # like (5, 1728)
+def featureLSVisualize(eigen_vectors, weights=None, colln_imgs, img_dataset): # like (5, 1728)
     r"""
     Visualizer which, for each latent semantics, selects the image with the "least dot product"  to that latent semantics and visualizes that image as the visual-placeholder for that latent semantics.
     --------
     Inputs:
         1. eigen_vectors: A numpy 2-d array, in which rows = k, cols = dimension of features.
 
-        2. weights: A numpy 1-d array with length equals to rows of eigen_vectors.
+        2. weights: A numpy 1-d array with length equals to rows of eigen_vectors. Default by None.
 
         3. colln_imgs: Collection of images, with each image comprised of RGB arrays. len(colln_imgs)=img_num
 
