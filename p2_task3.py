@@ -2,8 +2,7 @@ import os
 import csv
 import numpy as np
 from skimage.io import imread_collection
-import main
-
+import phase1_main
 
 #--------------------------------------------------------
 # files : a list of file's names
@@ -99,34 +98,33 @@ def task_3(files,model,label,tech,k,csv_infor = csv.reader(open('handinfo.csv','
 #choose different tech
 
     if tech == 'PCA':
-        main.PCA(X,k)
+        U,V = main.PCA(X,k)
     elif tech == 'SVD':
-        main.SVD(X,k)
+        U,V = main.SVD(X,k)
     elif tech == 'NMF':
-        main.aNMF(X, k)
+        U,V = main.NMF(X, k)
     elif tech == 'PCA':
-        main.LDA(X, k)
+        U,V = main.LDA(X, k)
+    print(U, V)
+
+
 
 
 
     # need visualization now
 
 
+if __name__ == "__main__":
 
 
+    csv_infor = csv.reader(open('handinfo.csv','r'))    # load hand information, csv format
+    for file in os.walk('/Users/tiancaikening/PycharmProjects/sperate/small'):      # given dataset
+        file[2].sort()                                  # by number order
+    files = file[2]                                     # ignore an empty list
+    model='LBP'
+    tech = 'NMF'
+    k = 2
+    #files is a list of sorted filenames
+    label = 'right'
 
-csv_infor = csv.reader(open('handinfo.csv','r'))    # load hand information, csv format
-for file in os.walk('/Users/tiancaikening/PycharmProjects/sperate/small'):      # given dataset
-    file[2].sort()                                  # by number order
-files = file[2]                                     # ignore an empty list
-
-
-
-
-model='LBP'
-tech = 'NMF'
-k = 2
-#files is a list of sorted filenames
-label = 'right'
-
-task_3(files,model,label,tech,k)
+    task_3(files,model,label,tech,k)
