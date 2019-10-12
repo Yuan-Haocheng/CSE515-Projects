@@ -1,7 +1,9 @@
 import numpy as np
 import sys
 import math
+import matplotlib.pyplot as plt
 import pickle
+import os
 from scipy.stats import skew
 from skimage.io import imread_collection, imread, imshow, show, imshow_collection
 from skimage.feature import local_binary_pattern, hog
@@ -13,9 +15,26 @@ import cv2
 from scipy.sparse.linalg import svds, eigs
 
 
+def getImgID(PATH):
+    '''
+    Function to get names of the JPG images in the input path in alphabetical order
+    To get names of images of different format, change '.jpg' to the required format
+    Input: PATH to the folder containing images
+    Output: List of size N, where N is the number of images in the folder
+    '''
+
+    imgID = []
+    for file in sorted(os.listdir(PATH)):
+        if '.jpg' in file:
+            file = file.split('.')[0]
+            file = file.split('_')[1]
+            imgID.append(file)
+    return imgID
+
+
 def loadImgs(PATH):
     '''
-    Function to load and read the JPG images in the input path
+    Function to load and read the JPG images in the input path in alphabetical order of their names
     To read images of different format, change '.jpg' to the required format
     Input: PATH to the folder containing images
     Output: List of size N, where N is the number of images in the folder
@@ -38,13 +57,13 @@ def cosineDist(f1, f2):
     '''
     Function to calculate Cosine Distance between two features
     Input: Two features of equal length
-    Output: A real value in range [0,1]
+    Output: A real value in [0,100]%
     '''
 
     dot = np.dot(f1, f2)
     norm1 = np.linalg.norm(f1)
     norm2 = np.linalg.norm(f2)
-    return 1 - (dot / (norm1 * norm2))
+    return ((1 + (dot / (norm1 * norm2)))/2)*100
 
 
 def moments(colln_imgs):
@@ -199,64 +218,164 @@ def LDA(A, k):
     lda = LatentDirichletAllocation(n_components=k)
     U = lda.fit_transform(A)
     V = lda.components_
-    return U, V   
+    return U, V  
 
 
-def termWeight(M, l):
+def latentSemantics(imgs, f, d, k):
+    '''
+    Function to compute data latent semantics and feature latent semantics
+    Input: imgs: List of images
+           f: Feature model
+           d: Dimensionality reduction technique
+           k: Number of reduced dimension
+    Output: U: Data latent semantic matrix of size (N, k)
+            V: Feature latent semantic matrix of size (k, M)
+    '''
+
+    if f=='LBP':
+        A = LBP(imgs)
+    elif f=='HOG':
+        A = HOG(imgs)
+    elif f=='SIFT':
+        A = SIFT(imgs)
+    else:
+        A = moments(imgs)
+        
+    if d=='SVD':
+        U, _, V = SVD(A, k)
+    elif d=='PCA':
+        U, V, _, _ = _PCA_(A, k)
+    elif d=='NMF':
+        U, V = _NMF_(A, k)
+    else:
+        U, V = LDA(A, k) 
+
+    return U, V
+
+
+def termWeight(U, V):
     '''
     Function to compute term-weight pair
-    Input: M: 2D Numpy Array of size (N, k) (in case of l='data') or (k, M) (in case of l='feature'), depending upon the label
-           l: Label indicating whether M is data or feature latent semantic matrix. Takes value as 'data' or 'feature'
-    Output: P: Dictionary of length k where each value is a list of tuples of size N (in case of l='data') or M (in case of l='feature') 
-               where each tuple is a term weight pair ordered in decreasing weight
+    Input: U: Data latent semantic matrix of size (N, k)
+           V: Feature latent semantic matrix of size (k, M)
+    Output: dataLS: Dictionary of length k, where key corresponds to a data latent semantic 
+                    and its corresponding value is a list of tuples of size N
+                    where each tuple is a term weight pair ordered in decreasing weight
+            featureLS: Dictionary of length k, where key corresponds to a feature latent semantic 
+                       and its corresponding value is a list of tuples of size M
+                       where each tuple is a term weight pair ordered in decreasing weight
     '''
 
-    dic = {}
-    if l=='data':
-        for k in range(M.shape[1]):
-            ls = M[:,k]
-            tw = [(t+1,w) for t,w in enumerate(ls)]
-            tw.sort(key=lambda x: x[1], reverse=True)
-            dic['Data Latent Semantic'+' #'+str(k+1)] = tw
+    dataLS, featureLS = {}, {}
+    
+    for k in range(U.shape[1]):
+        ls = U[:,k]
+        tw = [(t+1,w) for t,w in enumerate(ls)]
+        tw.sort(key=lambda x: x[1], reverse=True)
+        dataLS['Data Latent Semantic'+' #'+str(k+1)] = tw
+    
+    for k in range(V.shape[0]):
+        ls = V[k,:]
+        tw = [(t+1,w) for t,w in enumerate(ls)]
+        tw.sort(key=lambda x: x[1], reverse=True)
+        featureLS['Feature Latent Semantic'+' #'+str(k+1)] = tw
+    
+    return dataLS, featureLS
+
+
+def findSimilarImgs(U, m, idx, metric):
+    '''
+    Function to find m most similar images
+    Input: U: Data latent semantic matrix of size (N, k)
+           m: Number of similar images
+           idx: Index of the query image
+           metric: Evaluation metric
+    Output: idxs: Indexes corresponding to the m most similar images 
+            scores: Matching score for the m most similar images in decreasing order
+    '''
+
+    dist = []
+    q = U[idx,:]
+    dist = [-1]*U.shape[0]
+    if metric=='cosine':
+        for i, f in enumerate(U):
+            if i!=idx:
+                dist[i] = cosineDist(q, f)
     else:
-        for k in range(M.shape[0]):
-            ls = M[k,:]
-            tw = [(t+1,w) for t,w in enumerate(ls)]
-            tw.sort(key=lambda x: x[1], reverse=True)
-            dic['Feature Latent Semantic'+' #'+str(k+1)] = tw
-    return dic
+        for i, f in enumerate(U):
+            if i!=idx:
+                dist[i] = euclideanDist(q, f)
+        mn, mx = min(dist), max(dist)
+        dist = [(1-(x-mn)/(mx-mn))*100 for x in dist]
+    idxs = np.argpartition(dist, -m)[-m:]
+    scores = [dist[i] for i in idxs]
+    z = list(zip(idxs,scores))
+    z.sort(key=lambda x: x[1], reverse=True)
+    idxs, scores = list(zip(*z))[0], list(zip(*z))[1]
+    return idxs, scores
+
+
+def displaySimImgs(simImgs, simImgID, scores):
+    """
+    Function to display m similar images with name and matching score
+    Input: simImgs: List of m most similar images of length m
+           simImgID: List of names of m most similar images of length m
+           scores: List of matching scores of m most similar images of length m
+    """
+
+    cols = 3
+    p = 1
+    N = len(simImgID)
+    rows = N//cols + 1
+
+    plt.figure(figsize=(10, 10))       
+    for i,v in enumerate(simImgID):
+        plt.subplot(rows, cols, p)        
+        plt.title('Hand_'+v+'.jpg   Score: '+str(scores[i]))
+        plt.imshow(simImgs[i])        
+        p += 1   
+    plt.subplots_adjust(hspace=0.5, wspace=0.1)  
+    plt.show()
 
 
 def main():
 
     PATH = '/home/pu/Desktop/CSE515/Project/Phase1/Priyansh_Phase1/Data/Test/'
-    f, k, d = sys.argv[1], int(sys.argv[2]), sys.argv[3]
+    imgID = getImgID(PATH)
+    imgs = loadImgs(PATH)
     
-    if f=='LBP':
-        A = LBP(loadImgs(PATH))
-    elif f=='HOG':
-        A = HOG(loadImgs(PATH))
-    elif f=='SIFT':
-        A = SIFT(loadImgs(PATH))
-    else:
-        A = moments(loadImgs(PATH))
+    t = int(sys.argv[1])
     
-    if d=='SVD':
-        U, _, V = SVD(A, k)
-        dataLS = termWeight(U, 'data')
-        featureLS = termWeight(V, 'feature')
-    elif d=='PCA':
-        U, V, _, _ = _PCA_(A, k)
-        dataLS = termWeight(U, 'data')
-        featureLS = termWeight(V, 'feature')
-    elif d=='NMF':
-        U, V = _NMF_(A, k)
-        dataLS = termWeight(U, 'data')
-        featureLS = termWeight(V, 'feature')
-    else:
-        U, V = LDA(A, k)
-        dataLS = termWeight(U, 'data')
-        featureLS = termWeight(V, 'feature')
+    #Task 1
+    if t==1:
+        f, k, d = sys.argv[2], int(sys.argv[3]), sys.argv[4]
+
+        U, V = latentSemantics(imgs, f, d, k)
+               
+        dataLS, featureLS = termWeight(U, V)
+
+        dic = {'U':U, 'V':V}
+        with open('/home/pu/Desktop/CSE515/Project/Phase1/Priyansh_Phase1/Features/'+f+'_'+d+'_'+str(k)+'.pkl', 'wb') as f:
+                pickle.dump(dic, f)
+    
+    #Task 2
+    elif t==2:
+        f, k, d, img, m = sys.argv[2], int(sys.argv[3]), sys.argv[4], sys.argv[5], int(sys.argv[6])
+
+        if os.path.isfile('/home/pu/Desktop/CSE515/Project/Phase1/Priyansh_Phase1/Features/'+f+'_'+d+'_'+str(k)+'.pkl'):
+            with open('/home/pu/Desktop/CSE515/Project/Phase1/Priyansh_Phase1/Features/'+f+'_'+d+'_'+str(k)+'.pkl', 'rb') as f:
+                dic = pickle.load(f)
+            U = dic['U']
+        else:
+            U, _ = latentSemantics(imgs, f, d, k)
+        
+        idx = imgID.index(img)
+        
+        idxs, scores = findSimilarImgs(U, m, idx, 'cosine')
+
+        simImgID = [imgID[i] for i in idxs]
+        simImgs = np.array([imgs[i] for i in idxs])
+        displaySimImgs(simImgs, simImgID, scores)
 
 
 if __name__ == "__main__":
