@@ -130,5 +130,3 @@ if __name__ == "__main__":
     csvname = 'handinfo.csv'
     task_3(path,csvname,model,label,tech,k)
 
-
-    #globe
