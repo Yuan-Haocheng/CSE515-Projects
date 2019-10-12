@@ -9,7 +9,7 @@ import phase1_main
 # label : metadata : 'right' || 'left' || 'dorsal' || 'palmar' || 'with' || 'without' || 'male' || 'female'
 # csv_infor : csv file containing metadata
 
-def get_matrix(files,csv_infor,label):
+def get_matrix(files,csv_infor,label,folder_name):
     img_meta_list = []
     filenames = []
     selected_img = []
@@ -63,7 +63,7 @@ def get_matrix(files,csv_infor,label):
         value = 0
     for i in range(len(filenames)):
         if img_meta_list[i][index] == value:
-            selected_img.append(filenames[i])
+            selected_img.append(folder_name+'/'+filenames[i])
     return selected_img
 
 
@@ -77,34 +77,37 @@ def get_matrix(files,csv_infor,label):
 # csv_infor : csv file containing metadata
 
 
-def task_3(files,model,label,tech,k,csv_infor = csv.reader(open('handinfo.csv','r')) ):
-    img_list = get_matrix(files,csv_infor,label)
+def task_3(folder_name,csvname,model,label,tech,k):
 
-    img_meta = np.array(img_list)      # image-metadata matrix -> nx4
+    for hahaha in os.walk(folder_name):      # given dataset
+        hahaha[2].sort()                                  # by number order
+    files = hahaha[2]
+    csv_infor = csv.reader(open(csvname, 'r'))  # load hand information, csv format
+    img_list = get_matrix(files,csv_infor,label,folder_name)
+    img_meta = np.array(img_list)
     colln_imgs = (imread_collection(img_meta))
-
-
+    print(colln_imgs)
 # choose different model
 # X will be nxm array ( n images, m features)
     if model == 'CM':
-        X = main.moments(colln_imgs)
+        X = phase1_main.moments(colln_imgs)
     elif model == 'LBP':
-        X = main.LBP(colln_imgs)
+        X = phase1_main.LBP(colln_imgs)
     elif model == 'HOG':
-        X = main.HOG(colln_imgs)
+        X = phase1_main.HOG(colln_imgs)
     elif model == 'SIFT':
-        X = main.SIFT(colln_imgs)
+        X = phase1_main.SIFT(colln_imgs)
 
 #choose different tech
 
     if tech == 'PCA':
-        U,V = main.PCA(X,k)
+        U,V = phase1_main.PCA(X,k)
     elif tech == 'SVD':
-        U,V = main.SVD(X,k)
+        U,V = phase1_main.SVD(X,k)
     elif tech == 'NMF':
-        U,V = main.NMF(X, k)
+        U,V = phase1_main.aNMF(X, k)
     elif tech == 'PCA':
-        U,V = main.LDA(X, k)
+        U,V = phase1_main.LDA(X, k)
     print(U, V)
 
 
@@ -117,14 +120,15 @@ def task_3(files,model,label,tech,k,csv_infor = csv.reader(open('handinfo.csv','
 if __name__ == "__main__":
 
 
-    csv_infor = csv.reader(open('handinfo.csv','r'))    # load hand information, csv format
-    for file in os.walk('/Users/tiancaikening/PycharmProjects/sperate/small'):      # given dataset
-        file[2].sort()                                  # by number order
-    files = file[2]                                     # ignore an empty list
+                                        # ignore an empty list
     model='LBP'
     tech = 'NMF'
     k = 2
     #files is a list of sorted filenames
     label = 'right'
+    path = 'small'
+    csvname = 'handinfo.csv'
+    task_3(path,csvname,model,label,tech,k)
 
-    task_3(files,model,label,tech,k)
+
+    #globe
