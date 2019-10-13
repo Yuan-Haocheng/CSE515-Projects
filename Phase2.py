@@ -13,6 +13,7 @@ from sklearn.decomposition import NMF, LatentDirichletAllocation, PCA
 from cv2 import xfeatures2d_SIFT
 import cv2
 from scipy.sparse.linalg import svds, eigs
+import pandas
 
 
 def getImgID(PATH):
@@ -41,6 +42,51 @@ def loadImgs(PATH):
     '''
 
     return(imread_collection(PATH+'*.jpg'))
+
+
+def getMetadata(PATH, imgID):
+    '''
+    Function to get metadata of the images
+    Input: PATH: path to the folder containing HandsInfo.csv file
+           imgID: List of image names of length N where N is the number of images
+    Output: metaData: Array of size (N, 9) where N is the number of images and each column corresponds to an attribute
+    '''
+    
+    metadata = pandas.read_csv(PATH+'HandInfo.csv').values
+    imgIDs = list(metadata[:,7])
+    idx = [imgIDs.index('Hand_'+i+'.jpg') for i in imgID]
+    metaData = metadata[idx,:]
+    return metaData
+
+
+def getImgCorrLabel(imgs, metaData, l):
+    '''
+    Function to get images corresponding to the label
+    Input: imgs: List of images of length N
+           metaData: Array of size (N, 9)
+           l: Label 
+    Output: imgCorrLabel: List of images corresponding to the label
+    '''
+
+    imgCorrLabel = []
+    imgs = np.array(imgs)
+    if l=='left' or l=='right' or l=='dorsal' or l=='palmar':
+        for i,v in enumerate(list(metaData[:,6])):
+            if l in v:
+                imgCorrLabel.append(imgs[i])
+    elif l=='male' or l=='female':
+        for i,v in enumerate(list(metaData[:,2])):
+            if l==v:
+                imgCorrLabel.append(imgs[i])
+    elif l=='wacc':
+        for i,v in enumerate(list(metaData[:,4])):
+            if v==1:
+                imgCorrLabel.append(imgs[i])
+    else:
+        for i,v in enumerate(list(metaData[:,4])):
+            if v==0:
+                imgCorrLabel.append(imgs[i])   
+    return imgCorrLabel             
 
 
 def euclideanDist(f1, f2):
@@ -224,7 +270,7 @@ def LDA(A, k):
 def latentSemantics(imgs, f, d, k):
     '''
     Function to compute data latent semantics and feature latent semantics
-    Input: imgs: List of images
+    Input: imgs: List of images of length N
            f: Feature model
            d: Dimensionality reduction technique
            k: Number of reduced dimension
@@ -327,7 +373,7 @@ def displaySimImgs(simImgs, simImgID, scores):
     p = 1
     N = len(simImgID)
     rows = N//cols + 1
-
+    
     plt.figure(figsize=(10, 10))       
     for i,v in enumerate(simImgID):
         plt.subplot(rows, cols, p)        
@@ -343,6 +389,8 @@ def main():
     PATH = '/home/pu/Desktop/CSE515/Project/Phase1/Priyansh_Phase1/Data/Test/'
     imgID = getImgID(PATH)
     imgs = loadImgs(PATH)
+    metaData = getMetadata(PATH, imgID)
+    print(metaData)
     
     t = int(sys.argv[1])
     
@@ -367,7 +415,10 @@ def main():
                 dic = pickle.load(f)
             U = dic['U']
         else:
-            U, _ = latentSemantics(imgs, f, d, k)
+            U, V = latentSemantics(imgs, f, d, k)
+            dic = {'U':U, 'V':V}
+            with open('/home/pu/Desktop/CSE515/Project/Phase1/Priyansh_Phase1/Features/'+f+'_'+d+'_'+str(k)+'.pkl', 'wb') as f:
+                pickle.dump(dic, f)
         
         idx = imgID.index(img)
         
@@ -376,6 +427,18 @@ def main():
         simImgID = [imgID[i] for i in idxs]
         simImgs = np.array([imgs[i] for i in idxs])
         displaySimImgs(simImgs, simImgID, scores)
+    
+    #Task 3
+    if t==3:
+        f, k, d, l = sys.argv[2], int(sys.argv[3]), sys.argv[4], sys.argv[5]
+
+        imgCorrLabel = getImgCorrLabel(imgs, metaData, l)
+        
+        U, V = latentSemantics(imgCorrLabel, f, d, k)
+               
+        dic = {'U':U, 'V':V}
+        with open('/home/pu/Desktop/CSE515/Project/Phase1/Priyansh_Phase1/Features/'+f+'_'+d+'_'+l+'_'+str(k)+'.pkl', 'wb') as f:
+                pickle.dump(dic, f)
 
 
 if __name__ == "__main__":
