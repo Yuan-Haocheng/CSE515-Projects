@@ -461,6 +461,59 @@ def classify(U, q, l):
         return l
     else:
         return 'not '+l
+    
+def binary_NMF(csv_infor,files,k):
+
+
+    img_meta_list = []
+
+    for rows in csv_infor:                              # check given data set's metadata
+        for fn in files:
+            if 'Hand_'+fn+'.jpg'==rows[7]:                             # find
+                if rows[6]=='dorsal right':             # parameters: a: 1-right hand,0-left hand
+                    a=b=1                               # parameters: b: 1-dorsal, 0-palmar
+                elif rows[6]=='palmar right':           # parameters: c: 1-with accessories,0-without accessories
+                    a=1                                 # parameters: d: 1-male,0-female
+                    b=0
+                elif rows[6] == 'dorsal left':
+                    a=0
+                    b=1
+                else :
+                    a=b=0
+                if rows[2] =='male':
+                    d=1
+                else :
+                    d=0
+
+                img_meta_list.append((a,b,int(rows[5]),d))   #list for image-metadata
+
+
+    img_meta = np.array(img_meta_list)      # image-metadata matrix -> nx4
+
+
+    nmf = NMF(n_components=k,  # k value
+              # init=None,  # initial method for W H，including 'random' | 'nndsvd'(default) |  'nndsvda' | 'nndsvdar' | 'custom'.
+              # solver='cd',  # 'cd' | 'mu'
+              # beta_loss='frobenius',  # {'frobenius', 'kullback-leibler', 'itakura-saito'}
+              # tol=1e-4,  #condition for stopping
+              # max_iter=200,  # max times for itreration
+              # random_state=None,
+              # alpha=0.,  # Regularization parameter
+              # l1_ratio=0.,  # Regularization parameter
+              # verbose=0,  # Lengthy mode
+              # shuffle=False  # for "cd solver"
+              )
+
+    X = img_meta
+    nmf.fit(X)  # run NMF
+    U = nmf.fit_transform(X)  # get matrix W
+
+    V = nmf.components_  # matrix H
+
+    return U,V
+
+
+
 
 
 def main():
@@ -602,6 +655,10 @@ def main():
         q = model.transform(A)
         
         print(classify(U, q, l))
+   #Task 8
+    elif t==8:
+        k = sys.argv[2]
+        U, V = binary_NMF(metaData,imgID,k)
 
         
 if __name__ == "__main__":
