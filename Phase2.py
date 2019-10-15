@@ -465,27 +465,47 @@ def classify(U, q, l):
 def binary_NMF(csv_infor,files,k):
 
 
+
+
     img_meta_list = []
 
     for rows in csv_infor:                              # check given data set's metadata
         for fn in files:
-            if 'Hand_'+fn+'.jpg'==rows[7]:                             # find
-                if rows[6]=='dorsal right':             # parameters: a: 1-right hand,0-left hand
-                    a=b=1                               # parameters: b: 1-dorsal, 0-palmar
-                elif rows[6]=='palmar right':           # parameters: c: 1-with accessories,0-without accessories
-                    a=1                                 # parameters: d: 1-male,0-female
+            if fn==rows[7]:                             # find
+                if rows[6]=='dorsal right':             # parameters: a: right hand, b:left hand
+                    c=1                                 # parameters: c: dorsal, d:palmar
+                    d=0
+                    a=1
                     b=0
+                elif rows[6]=='palmar right':           # parameters: e: with accessories,f: without accessories
+                    a=1                                 # parameters: g: male h:female
+                    b=0
+                    c=0
+                    d=1
                 elif rows[6] == 'dorsal left':
                     a=0
                     b=1
-                else :
-                    a=b=0
-                if rows[2] =='male':
-                    d=1
-                else :
+                    c=1
                     d=0
+                else :
+                    a=0
+                    b=1
+                    c=0
+                    d=1
+                if rows[2] =='male':
+                    g=1
+                    h=0
+                else :
+                    g=0
+                    h=1
+                if rows[5] == '1':
+                    e=1
+                    f=0
+                else:
+                    e=0
+                    f=1
 
-                img_meta_list.append((a,b,int(rows[5]),d))   #list for image-metadata
+                img_meta_list.append((a,b,c,d,e,f,g,h))   #list for image-metadata
 
 
     img_meta = np.array(img_meta_list)      # image-metadata matrix -> nx4
