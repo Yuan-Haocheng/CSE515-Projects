@@ -9,11 +9,14 @@ from skimage.io import imread_collection, imread, imshow, show, imshow_collectio
 from skimage.feature import local_binary_pattern, hog
 from skimage.color import rgb2yuv, rgb2gray
 from skimage.transform import resize
-from sklearn.decomposition import NMF, LatentDirichletAllocation, PCA
+from sklearn.decomposition import NMF, LatentDirichletAllocation, PCA, TruncatedSVD
+from sklearn.cluster import KMeans
 from cv2 import xfeatures2d_SIFT
+import joblib
 import cv2
-from scipy.sparse.linalg import svds, eigs
+import json
 import pandas
+from collections import Counter
 
 
 def getImgID(PATH):
@@ -182,21 +185,60 @@ def HOG(colln_imgs):
     return colln_hog
 
 
-def SIFT(colln_imgs):
-    '''
-    Function to compute SIFT of list of images
-    Input: List of length N, where N is the number of images
-    Output: Numpy Array of size (N, M), where N is the number of images and M = 128
-    '''
+def histSIFT(labels, imgkp):
 
-    colln_sift = []
+    colln_hist = []
+    for i in range(0,len(imgkp)-1):
+        hist = np.zeros(300)
+        label = labels[imgkp[i]:imgkp[i+1]]
+        for l in label:
+            hist[l] += 1
+        norm = sum(hist)
+        colln_hist.append([h/norm for h in hist])
+    colln_hist = np.array(colln_hist)
+    return colln_hist
+
+
+def kMeansSIFT(colln_sift, imgkp):
+
+    kmeans = KMeans(n_clusters=300)
+    kmeans.fit(colln_sift)
+    labels = kmeans.labels_
+    colln_hist = histSIFT(labels, imgkp)
+    '''
+    #Deciding the number of clusters using elbow method
+    dist = []
+    for i in range(50,1001,50):
+        print(i)
+        kmeans = KMeans(n_clusters=i)
+        kmeans.fit(colln_sift)
+        dist.append(kmeans.inertia_)
+    plt.plot(list(range(50,1001,50)), dist)
+    plt.show()
+    '''
+    with open('/home/pu/Desktop/CSE515/Project/Phase1/Priyansh_Phase1/Features/kmeans'+'_'+str(300)+'.joblib', 'wb') as f1:
+        joblib.dump(kmeans, f1)
+    return colln_hist
+
+
+def SIFTFeatures(colln_imgs):
+
+    colln_sift, imgkp = [], [0]
     sift_cv = xfeatures2d_SIFT.create()
     for img in colln_imgs:
         img = cv2.cvtColor( img, cv2.COLOR_BGR2GRAY)
         _, sift = sift_cv.detectAndCompute(img, None)
-        sift = np.array(sift)
-        colln_sift.append(np.mean(sift,axis=0))
-    return np.array(colln_sift)
+        colln_sift += list(sift)
+        imgkp.append(np.array(colln_sift).shape[0])
+    colln_sift = np.array(colln_sift)
+    return colln_sift, imgkp
+
+
+def SIFT(colln_imgs):
+
+    colln_sift, imgkp = SIFTFeatures(colln_imgs)
+    colln_hist = kMeansSIFT(colln_sift, imgkp)
+    return colln_hist
   
 
 def SVD(A, k):
@@ -210,10 +252,12 @@ def SVD(A, k):
             Ordered in decreasing eigenvalues
     '''
 
-    U, S, V = svds(A, k=k)
-    U = U[:, ::-1]
-    S = S[::-1]
-    V = V[::-1, :]
+    svd = TruncatedSVD(n_components=k)
+    U = svd.fit_transform(A)
+    V = svd.components_
+    S = svd.singular_values_
+    with open('/home/pu/Desktop/CSE515/Project/Phase1/Priyansh_Phase1/Features/SVD'+'_'+str(k)+'.joblib', 'wb') as f1:
+        joblib.dump(svd, f1)
     return U, S, V
 
 
@@ -222,19 +266,19 @@ def _PCA_(A, k):
     Function to compute PCA
     Input: A: 2D Numpy Array of size (N, M) where N is the number of images and M is number of features
            k: Number of reduced dimension
-    Output: U: Data latent semantic matrix (data in k-dimensional space) of size (N, k)
+    Output: U: Data latent semantic matrix of size (N, k)
             V: Feature latent semantic matrix (principal components) of size (k, M)
             S: List of eigenvalues of length k
-            D: List of percentage of variance accounted by each principal component
             Ordered in decreasing eigenvalues
     '''
 
     pca = PCA(n_components=k)
     U = pca.fit_transform(A)
     V = pca.components_
-    S = pca.explained_variance_
-    D = pca.explained_variance_ratio_ 
-    return U, V, S, D
+    S = pca.singular_values_
+    with open('/home/pu/Desktop/CSE515/Project/Phase1/Priyansh_Phase1/Features/PCA'+'_'+str(k)+'.joblib', 'wb') as f1:
+        joblib.dump(pca, f1)
+    return U, V, S
 
 
 def _NMF_(A, k):
@@ -249,6 +293,8 @@ def _NMF_(A, k):
     nmf = NMF(n_components=k)
     U = nmf.fit_transform(A)
     V = nmf.components_
+    with open('/home/pu/Desktop/CSE515/Project/Phase1/Priyansh_Phase1/Features/NMF'+'_'+str(k)+'.joblib', 'wb') as f1:
+        joblib.dump(nmf, f1)
     return U, V    
 
 
@@ -264,7 +310,35 @@ def LDA(A, k):
     lda = LatentDirichletAllocation(n_components=k)
     U = lda.fit_transform(A)
     V = lda.components_
+    with open('/home/pu/Desktop/CSE515/Project/Phase1/Priyansh_Phase1/Features/LDA'+'_'+str(k)+'.joblib', 'wb') as f1:
+        joblib.dump(lda, f1)
     return U, V  
+
+
+def featureModel(imgs, f):
+
+    if f=='LBP':
+        A = LBP(imgs)
+    elif f=='HOG':
+        A = HOG(imgs)
+    elif f=='SIFT':
+        A = SIFT(imgs)
+    else:
+        A = moments(imgs)
+    return A
+
+
+def dimRed(A, d, k):
+
+    if d=='SVD':
+        U, _, V = SVD(A, k)
+    elif d=='PCA':
+        U, V, _ = _PCA_(A, k)
+    elif d=='NMF':
+        U, V = _NMF_(A, k)
+    else:
+        U, V = LDA(A, k) 
+    return U, V
 
 
 def latentSemantics(imgs, f, d, k):
@@ -278,24 +352,8 @@ def latentSemantics(imgs, f, d, k):
             V: Feature latent semantic matrix of size (k, M)
     '''
 
-    if f=='LBP':
-        A = LBP(imgs)
-    elif f=='HOG':
-        A = HOG(imgs)
-    elif f=='SIFT':
-        A = SIFT(imgs)
-    else:
-        A = moments(imgs)
-        
-    if d=='SVD':
-        U, _, V = SVD(A, k)
-    elif d=='PCA':
-        U, V, _, _ = _PCA_(A, k)
-    elif d=='NMF':
-        U, V = _NMF_(A, k)
-    else:
-        U, V = LDA(A, k) 
-
+    A = featureModel(imgs, f)
+    U, V = dimRed(A, d, k)
     return U, V
 
 
@@ -329,19 +387,22 @@ def termWeight(U, V):
     return dataLS, featureLS
 
 
-def findSimilarImgs(U, m, idx, metric):
+def findSimilarImgs(U, m, idx, q, metric, flag):
     '''
     Function to find m most similar images
     Input: U: Data latent semantic matrix of size (N, k)
            m: Number of similar images
            idx: Index of the query image
+           q: Latent semantic of the query image
            metric: Evaluation metric
     Output: idxs: Indexes corresponding to the m most similar images 
             scores: Matching score for the m most similar images in decreasing order
     '''
 
-    dist = []
-    q = U[idx,:]
+    if not q.size:
+        q = U[idx,:]
+    else:
+        q = q[0,:]
     dist = [-1]*U.shape[0]
     if metric=='cosine':
         for i, f in enumerate(U):
@@ -351,8 +412,10 @@ def findSimilarImgs(U, m, idx, metric):
         for i, f in enumerate(U):
             if i!=idx:
                 dist[i] = euclideanDist(q, f)
+        if flag:
+            dist[idx] = max(dist)
         mn, mx = min(dist), max(dist)
-        dist = [(1-(x-mn)/(mx-mn))*100 for x in dist]
+        dist = [(1-((x-mn)/(mx-mn)))*100 for x in dist]
     idxs = np.argpartition(dist, -m)[-m:]
     scores = [dist[i] for i in idxs]
     z = list(zip(idxs,scores))
@@ -361,10 +424,12 @@ def findSimilarImgs(U, m, idx, metric):
     return idxs, scores
 
 
-def displaySimImgs(simImgs, simImgID, scores):
+def displaySimImgs(qImg, imgID, simImgs, simImgID, scores):
     """
     Function to display m similar images with name and matching score
-    Input: simImgs: List of m most similar images of length m
+    Input: qImg: Query image
+           imgID: Name of the query image 
+           simImgs: List of m most similar images of length m
            simImgID: List of names of m most similar images of length m
            scores: List of matching scores of m most similar images of length m
     """
@@ -374,7 +439,11 @@ def displaySimImgs(simImgs, simImgID, scores):
     N = len(simImgID)
     rows = N//cols + 1
     
-    plt.figure(figsize=(10, 10))       
+    plt.figure(figsize=(10, 10))  
+    plt.subplot(rows, cols, p)        
+    plt.title('Hand_'+imgID+'.jpg   Query Image')
+    plt.imshow(qImg)        
+    p += 1    
     for i,v in enumerate(simImgID):
         plt.subplot(rows, cols, p)        
         plt.title('Hand_'+v+'.jpg   Score: '+str(scores[i]))
@@ -384,13 +453,23 @@ def displaySimImgs(simImgs, simImgID, scores):
     plt.show()
 
 
+def classify(U, q, l):
+
+    centroid = np.mean(U, axis=0)
+    mDist = max([euclideanDist(centroid, f) for f in U])
+    if euclideanDist(centroid, q[0,:]) <= mDist:
+        return l
+    else:
+        return 'not '+l
+
+
 def main():
 
     PATH = '/home/pu/Desktop/CSE515/Project/Phase1/Priyansh_Phase1/Data/Test/'
+    PATHQ = PATH + 'Task5_Query/'
     imgID = getImgID(PATH)
     imgs = loadImgs(PATH)
     metaData = getMetadata(PATH, imgID)
-    print(metaData)
     
     t = int(sys.argv[1])
     
@@ -401,46 +480,130 @@ def main():
         U, V = latentSemantics(imgs, f, d, k)
                
         dataLS, featureLS = termWeight(U, V)
+        with open('/home/pu/Desktop/CSE515/Project/Phase1/Priyansh_Phase1/Features/'+f+'_'+d+'_'+str(k)+'_'+'DataLatentSemantics'+'.json', 'w') as f1:
+                f1.write(json.dumps(dataLS))
+        with open('/home/pu/Desktop/CSE515/Project/Phase1/Priyansh_Phase1/Features/'+f+'_'+d+'_'+str(k)+'_'+'FeatureLatentSemantics'+'.json', 'w') as f2:
+                f2.write(json.dumps(featureLS))
 
         dic = {'U':U, 'V':V}
-        with open('/home/pu/Desktop/CSE515/Project/Phase1/Priyansh_Phase1/Features/'+f+'_'+d+'_'+str(k)+'.pkl', 'wb') as f:
-                pickle.dump(dic, f)
+        with open('/home/pu/Desktop/CSE515/Project/Phase1/Priyansh_Phase1/Features/'+f+'_'+d+'_'+str(k)+'.pkl', 'wb') as f3:
+                pickle.dump(dic, f3)
     
     #Task 2
     elif t==2:
-        f, k, d, img, m = sys.argv[2], int(sys.argv[3]), sys.argv[4], sys.argv[5], int(sys.argv[6])
+        f, k, d, img, m, metric = sys.argv[2], int(sys.argv[3]), sys.argv[4], sys.argv[5], int(sys.argv[6]), sys.argv[7]
 
         if os.path.isfile('/home/pu/Desktop/CSE515/Project/Phase1/Priyansh_Phase1/Features/'+f+'_'+d+'_'+str(k)+'.pkl'):
-            with open('/home/pu/Desktop/CSE515/Project/Phase1/Priyansh_Phase1/Features/'+f+'_'+d+'_'+str(k)+'.pkl', 'rb') as f:
-                dic = pickle.load(f)
+            with open('/home/pu/Desktop/CSE515/Project/Phase1/Priyansh_Phase1/Features/'+f+'_'+d+'_'+str(k)+'.pkl', 'rb') as f1:
+                dic = pickle.load(f1)
             U = dic['U']
         else:
             U, V = latentSemantics(imgs, f, d, k)
             dic = {'U':U, 'V':V}
-            with open('/home/pu/Desktop/CSE515/Project/Phase1/Priyansh_Phase1/Features/'+f+'_'+d+'_'+str(k)+'.pkl', 'wb') as f:
-                pickle.dump(dic, f)
+            with open('/home/pu/Desktop/CSE515/Project/Phase1/Priyansh_Phase1/Features/'+f+'_'+d+'_'+str(k)+'.pkl', 'wb') as f2:
+                pickle.dump(dic, f2)
         
         idx = imgID.index(img)
         
-        idxs, scores = findSimilarImgs(U, m, idx, 'cosine')
+        idxs, scores = findSimilarImgs(U, m, idx, np.array([]), metric, True)
 
         simImgID = [imgID[i] for i in idxs]
         simImgs = np.array([imgs[i] for i in idxs])
-        displaySimImgs(simImgs, simImgID, scores)
+        displaySimImgs(imgs[idx], img, simImgs, simImgID, scores)
     
     #Task 3
-    if t==3:
+    elif t==3:
         f, k, d, l = sys.argv[2], int(sys.argv[3]), sys.argv[4], sys.argv[5]
 
         imgCorrLabel = getImgCorrLabel(imgs, metaData, l)
         
         U, V = latentSemantics(imgCorrLabel, f, d, k)
                
+        dataLS, featureLS = termWeight(U, V)
+        with open('/home/pu/Desktop/CSE515/Project/Phase1/Priyansh_Phase1/Features/'+f+'_'+d+'_'+l+'_'+str(k)+'_'+'DataLatentSemantics'+'.json', 'w') as f1:
+                f1.write(json.dumps(dataLS))
+        with open('/home/pu/Desktop/CSE515/Project/Phase1/Priyansh_Phase1/Features/'+f+'_'+d+'_'+l+'_'+str(k)+'_'+'FeatureLatentSemantics'+'.json', 'w') as f2:
+                f2.write(json.dumps(featureLS))
+
         dic = {'U':U, 'V':V}
-        with open('/home/pu/Desktop/CSE515/Project/Phase1/Priyansh_Phase1/Features/'+f+'_'+d+'_'+l+'_'+str(k)+'.pkl', 'wb') as f:
-                pickle.dump(dic, f)
+        with open('/home/pu/Desktop/CSE515/Project/Phase1/Priyansh_Phase1/Features/'+f+'_'+d+'_'+l+'_'+str(k)+'.pkl', 'wb') as f3:
+                pickle.dump(dic, f3)
+
+    #Task 4
+    elif t==4:
+        f, k, d, l, img, m, metric = sys.argv[2], int(sys.argv[3]), sys.argv[4], sys.argv[5], sys.argv[6], int(sys.argv[7]), sys.argv[8]
+
+        if os.path.isfile('/home/pu/Desktop/CSE515/Project/Phase1/Priyansh_Phase1/Features/'+f+'_'+d+'_'+l+'_'+str(k)+'.pkl'):
+            with open('/home/pu/Desktop/CSE515/Project/Phase1/Priyansh_Phase1/Features/'+f+'_'+d+'_'+l+'_'+str(k)+'.pkl', 'rb') as f4:
+                dic = pickle.load(f4)
+            U = dic['U']
+        else:
+            imgCorrLabel = getImgCorrLabel(imgs, metaData, l)
+        
+            U, V = latentSemantics(imgCorrLabel, f, d, k)
+                
+            dic = {'U':U, 'V':V}
+            with open('/home/pu/Desktop/CSE515/Project/Phase1/Priyansh_Phase1/Features/'+f+'_'+d+'_'+l+'_'+str(k)+'.pkl', 'wb') as f1:
+                    pickle.dump(dic, f1)
+        
+        idx = imgID.index(img)
+        qImg = [imgs[idx]]
+
+        if f=='SIFT':
+            colln_sift, imgkp = SIFTFeatures(qImg)
+            with open('/home/pu/Desktop/CSE515/Project/Phase1/Priyansh_Phase1/Features/kmeans'+'_'+str(300)+'.joblib', 'rb') as f2:
+                kmeans = joblib.load(f2)
+            labels = kmeans.predict(colln_sift)
+            A = histSIFT(labels, imgkp)
+        else:
+            A = featureModel(qImg, f)
+
+        with open('/home/pu/Desktop/CSE515/Project/Phase1/Priyansh_Phase1/Features/'+d+'_'+str(k)+'.joblib', 'rb') as f3:
+            model = joblib.load(f3)
+        q = model.transform(A)
+
+        idxs, scores = findSimilarImgs(U, m, idx, q, metric, False)
+
+        simImgID = [imgID[i] for i in idxs]
+        simImgs = np.array([imgs[i] for i in idxs])
+        displaySimImgs(imgs[idx], img, simImgs, simImgID, scores)  
 
 
+    #Task 5
+    elif t==5:
+        f, k, d, l, img = sys.argv[2], int(sys.argv[3]), sys.argv[4], sys.argv[5], sys.argv[6]
+
+        if os.path.isfile('/home/pu/Desktop/CSE515/Project/Phase1/Priyansh_Phase1/Features/'+f+'_'+d+'_'+l+'_'+str(k)+'.pkl'):
+            with open('/home/pu/Desktop/CSE515/Project/Phase1/Priyansh_Phase1/Features/'+f+'_'+d+'_'+l+'_'+str(k)+'.pkl', 'rb') as f4:
+                dic = pickle.load(f4)
+            U = dic['U']
+        else:
+            imgCorrLabel = getImgCorrLabel(imgs, metaData, l)
+        
+            U, V = latentSemantics(imgCorrLabel, f, d, k)
+                
+            dic = {'U':U, 'V':V}
+            with open('/home/pu/Desktop/CSE515/Project/Phase1/Priyansh_Phase1/Features/'+f+'_'+d+'_'+l+'_'+str(k)+'.pkl', 'wb') as f1:
+                    pickle.dump(dic, f1)
+        
+        qImg = imread_collection(PATHQ+'Hand_'+img+'.jpg')
+        
+        if f=='SIFT':
+            colln_sift, imgkp = SIFTFeatures(qImg)
+            with open('/home/pu/Desktop/CSE515/Project/Phase1/Priyansh_Phase1/Features/kmeans'+'_'+str(300)+'.joblib', 'rb') as f2:
+                kmeans = joblib.load(f2)
+            labels = kmeans.predict(colln_sift)
+            A = histSIFT(labels, imgkp)
+        else:
+            A = featureModel(qImg, f)
+
+        with open('/home/pu/Desktop/CSE515/Project/Phase1/Priyansh_Phase1/Features/'+d+'_'+str(k)+'.joblib', 'rb') as f3:
+            model = joblib.load(f3)
+        q = model.transform(A)
+        
+        print(classify(U, q, l))
+
+        
 if __name__ == "__main__":
 
     main()
