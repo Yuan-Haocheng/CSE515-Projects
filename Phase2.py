@@ -659,6 +659,15 @@ def main():
     elif t==8:
         k = sys.argv[2]
         U, V = binary_NMF(metaData,imgID,k)
+        dataLS, featureLS = termWeight(U, V)
+        with open('/home/pu/Desktop/CSE515/Project/Phase1/Priyansh_Phase1/Features/'+f+'_'+d+'_'+str(k)+'_'+'DataLatentSemantics'+'.json', 'w') as f1:
+                f1.write(json.dumps(dataLS))
+        with open('/home/pu/Desktop/CSE515/Project/Phase1/Priyansh_Phase1/Features/'+f+'_'+d+'_'+str(k)+'_'+'FeatureLatentSemantics'+'.json', 'w') as f2:
+                f2.write(json.dumps(featureLS))
+
+        dic = {'U':U, 'V':V}
+        with open('/home/pu/Desktop/CSE515/Project/Phase1/Priyansh_Phase1/Features/'+f+'_'+d+'_'+str(k)+'.pkl', 'wb') as f3:
+                pickle.dump(dic, f3)
 
         
 if __name__ == "__main__":
