@@ -471,7 +471,7 @@ def binary_NMF(csv_infor,files,k):
 
     for rows in csv_infor:                              # check given data set's metadata
         for fn in files:
-            if fn==rows[7]:                             # find
+            if 'Hand_'+fn+'.jpg'==rows[7]:                            # find
                 if rows[6]=='dorsal right':             # parameters: a: right hand, b:left hand
                     c=1                                 # parameters: c: dorsal, d:palmar
                     d=0
