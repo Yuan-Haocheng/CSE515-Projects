@@ -1,0 +1,30 @@
+    elif t==6:
+        import itertools
+        img = sys.argv[2]
+        metric = 'euclidean'
+        k = 8
+        idx = imgID.index(img)
+
+        feature = ['LBP', 'HOG', 'SIFT', 'MON']
+        dim = ['PCA', 'SVD', 'NMF', 'LDA']
+        a = list(itertools.product(feature, dim))
+        simidex = []
+        for i in a:
+            f = i[0]
+            d = i[1]
+            if os.path.isfile('/home/yhc/CSE515/Features/' + f + '_' + d + '_' + str(k) + '.pkl'):
+                with open('/home/yhc/CSE515/Features/' + f + '_' + d + '_' + str(k) + '.pkl', 'rb') as f1:
+                    dic = pickle.load(f1)
+                U = dic['U']
+            else:
+                U, V = latentSemantics(imgs, f, d, k)
+                dic = {'U': U, 'V': V}
+                with open('/home/yhc/CSE515/Features/' + f + '_' + d + '_' + str(k) + '.pkl', 'wb') as f2:
+                    pickle.dump(dic, f2)
+            idxs, _ = findSimilarImgs(U, 6, idx, np.array([]), metric, True)
+            simidex.extend(idxs)
+        sim = Counter(simidex).most_common(3)
+        score = [i[1] for i in sim]
+        simImgID = [imgID[i[0]] for i in sim]
+        simImgs = np.array([imgs[i[0]] for i in sim])
+        displaySimImgs(imgs[idx], img, simImgs, simImgID, score)
