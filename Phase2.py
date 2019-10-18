@@ -149,33 +149,6 @@ def moments(colln_imgs):
     return colln_mnts
 
 
-def momentsTransform(colln_imgs):
-    '''
-    Function to compute color moments of list of images for NMF and LDA
-    Input: List of length N, where N is the number of images
-    Output: Numpy Array of size (N, M), where N is the number of images and M = 1728
-    '''
-
-    win_h, win_w = 100, 100
-    colln_mnts = []
-    for img in colln_imgs:
-        img = rgb2yuv(img)
-        img_h, img_w = img.shape[0], img.shape[1]
-        mean, std_dev, skwn, mnts = [], [], [], []
-        for h in range(0, img_h-win_h+1, win_h):
-            for w in range(0, img_w-win_w+1, win_w):
-                win = img[h:h+win_h, w:w+win_w, :]
-                mean.append([np.mean(win[:,:,0]), np.mean(win[:,:,1]), np.mean(win[:,:,2])])
-                std_dev.append([np.std(win[:,:,0]), np.std(win[:,:,1]), np.std(win[:,:,2])])
-                skwn.append([skew(win[:,:,0], axis=None), skew(win[:,:,1], axis=None), skew(win[:,:,2], axis=None)])
-        mnts += [mean, std_dev, skwn]
-        colln_mnts.append(mnts)
-    colln_mnts = np.array(colln_mnts)
-    w,x,y,z = colln_mnts.shape
-    colln_mnts = colln_mnts.reshape((w,x*y*z))
-    return colln_mnts
-
-
 def LBP(colln_imgs):
     '''
     Function to compute LBP of list of images
